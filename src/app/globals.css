@@ -1,0 +1,176 @@
+@import 'tailwindcss/preflight';
+@tailwind utilities;
+@import 'tailwindcss';
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-rgb: 246, 240, 255;
+  --primary-color: rgb(236, 72, 153);
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(to right, #9da8f9, #fce7ff);
+  height: 100vh;
+  overflow: hidden;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Стили для карточек и элементов */
+.card-hover {
+  transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.input-focus {
+  transition: all 0.2s ease;
+}
+
+.input-focus:focus {
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.3);
+}
+
+/* Анимации */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s infinite;
+}
+
+/* Градиенты */
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    to right,
+    rgba(236, 72, 153, 0.7),
+    rgba(168, 85, 247, 0.7)
+  );
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.gradient-border:hover::after {
+  opacity: 1;
+}
+
+/* Добавляем стили для замены классов, которые не доступны в Tailwind v4 */
+.bg-purple-50 {
+  background-color: rgb(246, 240, 255);
+}
+
+.bg-purple-500,
+.from-purple-500 {
+  background-color: rgb(139, 92, 246);
+}
+
+.to-purple-400 {
+  background-color: rgb(167, 139, 250);
+}
+
+.bg-pink-500,
+.via-pink-500 {
+  background-color: rgb(236, 72, 153);
+}
+
+.bg-pink-200 {
+  background-color: rgb(251, 207, 232);
+}
+
+.bg-pink-300 {
+  background-color: rgb(249, 168, 212);
+}
+
+.text-pink-800 {
+  color: rgb(157, 23, 77);
+}
+
+.text-purple-600 {
+  color: rgb(124, 58, 237);
+}
+
+.hover\:bg-pink-600:hover {
+  background-color: rgb(219, 39, 119);
+}
+
+@layer utilities {
+  .btn-primary {
+    @apply bg-pink-500 text-white font-medium px-4 py-2 rounded-full hover:bg-pink-600 transition-colors;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-sm;
+  }
+}
+
+/* Анимация загрузки */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

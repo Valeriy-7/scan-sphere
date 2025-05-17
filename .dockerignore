@@ -1,0 +1,41 @@
+# Системные файлы
+.DS_Store
+*.pem
+
+# next.js
+.next/
+out/
+
+# Production
+/build
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env files
+.env
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Инструменты разработки
+.git
+.github
+.idea
+.vscode
+README.md
+.eslintrc
+.prettierrc
+.gitignore
+
+# Node.js
+node_modules/
+npm-debug.log

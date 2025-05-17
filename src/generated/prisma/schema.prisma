@@ -1,0 +1,61 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SearchQuery {
+  id        Int      @id @default(autoincrement())
+  query     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Связь с товарами
+  products  Product[]
+  // Связь с позициями
+  positions Position[]
+}
+
+model Product {
+  id            Int         @id @default(autoincrement())
+  article       String      @unique
+  title         String?
+  price         Float?
+  imageUrl      String?
+  isCompetitor  Boolean     @default(false)
+  searchQueryId Int
+  searchQuery   SearchQuery @relation(fields: [searchQueryId], references: [id], onDelete: Cascade)
+
+  // Связь с позициями
+  positions Position[]
+
+  @@index([article])
+  @@index([searchQueryId])
+}
+
+model Position {
+  id            Int    @id @default(autoincrement())
+  city          String
+  position      Int // Позиция товара в выдаче
+  page          Int // Страница, на которой найден товар
+  productId     Int
+  searchQueryId Int
+
+  // Связи
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  searchQuery SearchQuery @relation(fields: [searchQueryId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([searchQueryId])
+  @@index([city])
+}
