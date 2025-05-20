@@ -31,26 +31,41 @@ mkdir -p public/images/cache
 
 ### Сборка и запуск
 
-1. Соберите Docker-образ:
+1. Отредактируйте файл `stack.env` с необходимыми настройками:
+
+```
+# Укажите версию тега образа
+TAG=v1.0.0
+# Порт приложения на хосте (на сервере доступен на 3004)
+APP_PORT=3000
+# Окружение (production, staging, development)
+NODE_ENV=production
+# URL базы данных, например PostgreSQL
+DATABASE_URL=postgresql://user:password@host:port/dbname
+# Выполнять ли миграции при запуске (true/false)
+RUN_MIGRATIONS=false
+```
+
+2. Соберите Docker-образ:
 
 ```bash
 docker-compose build
 ```
 
-2. Запустите приложение:
+3. Запустите приложение:
 
 ```bash
 docker-compose up -d
 ```
 
-Приложение будет доступно по адресу: http://localhost:3000
+Приложение будет доступно по адресу: http://localhost:3004
 
 ### Проверка состояния
 
 Для проверки работоспособности приложения и подключения к БД:
 
 ```bash
-curl http://localhost:3000/api/health
+curl http://localhost:3004/api/health
 ```
 
 ### Остановка приложения
@@ -68,7 +83,7 @@ git clone https://github.com/yourname/openparsersferav.git
 cd openparsersferav
 ```
 
-2. Создайте файл `.env` с вашими настройками подключения к БД
+2. Отредактируйте файл `stack.env` с настройками подключения к БД
 
 3. Запустите приложение:
 
@@ -80,6 +95,28 @@ docker-compose up -d
 
 ```bash
 git pull
+docker-compose down
+docker-compose build
+docker-compose up -d
+```
+
+## Решение проблемы с libssl в Docker
+
+Если вы столкнулись с ошибкой:
+```
+Error [PrismaClientInitializationError]: Unable to require(`/app/src/generated/prisma/libquery_engine-linux-musl.so.node`).
+The Prisma engines do not seem to be compatible with your system. 
+Details: Error loading shared library libssl.so.1.1: No such file or directory
+```
+
+Эта проблема решена в текущей версии Docker-образа. Внесены следующие изменения:
+
+1. В `Dockerfile` добавлена установка необходимых библиотек (libssl.so.1.1 и libcrypto.so.1.1)
+2. Добавлена генерация Prisma клиента перед запуском в контейнере
+3. Добавлена поддержка автоматического запуска миграций БД (опционально)
+
+При обновлении проекта достаточно выполнить:
+```
 docker-compose down
 docker-compose build
 docker-compose up -d

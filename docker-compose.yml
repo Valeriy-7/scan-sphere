@@ -12,9 +12,11 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV}
       - DATABASE_URL=${DATABASE_URL}
+      - RUN_MIGRATIONS=${RUN_MIGRATIONS:-false}
     volumes:
       - ./public/images:/app/public/images
       - ./public/images/cache:/app/public/images/cache
+      - ./src/generated:/app/src/generated
     healthcheck:
       test:
         [
