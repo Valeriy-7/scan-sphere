@@ -20,7 +20,7 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
-    formats: ['image/webp'],
+    formats: ['image/webp', 'image/svg+xml'],
     minimumCacheTTL: 60,
   },
   // Увеличиваем таймаут для API запросов
@@ -36,6 +36,11 @@ const nextConfig = {
       {
         source: '/api/:path*',
         destination: '/api/:path*',
+      },
+      // Прямой доступ к статическим файлам
+      {
+        source: '/images/:path*',
+        destination: '/images/:path*',
       },
     ];
   },
