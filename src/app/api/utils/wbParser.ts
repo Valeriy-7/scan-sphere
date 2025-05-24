@@ -332,13 +332,22 @@ export async function getPositionsInCities(
   const chartData: ChartData[] = [];
 
   try {
-    // Используем все доступные города из конфигурации
-    const cities = Object.entries(CITY_CODES);
+    // Используем только Москву для ускорения работы
+    const cities = Object.entries(CITY_CODES).slice(0, 1); // Берем только первый город (Москву)
 
-    // Запускаем браузер
+    // Запускаем браузер с оптимальными настройками
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
+      ],
+      timeout: 20000,
     });
 
     // Базовые позиции для генерации других городов
@@ -356,6 +365,23 @@ export async function getPositionsInCities(
 
       // Создаем новую страницу для Москвы
       const page = await browser.newPage();
+
+      // Оптимизация: блокируем ненужные ресурсы
+      await page.setRequestInterception(true);
+      page.on('request', (req) => {
+        const resourceType = req.resourceType();
+        if (
+          resourceType === 'stylesheet' || 
+          resourceType === 'font' || 
+          resourceType === 'media' ||
+          req.url().includes('google') ||
+          req.url().includes('analytics')
+        ) {
+          req.abort();
+        } else {
+          req.continue();
+        }
+      });
 
       // Устанавливаем User-Agent как у обычного браузера
       await page.setUserAgent(
@@ -380,8 +406,8 @@ export async function getPositionsInCities(
         domain: '.wildberries.ru',
       });
 
-      // Максимальное количество страниц для проверки
-      const maxPages = 5;
+      // Уменьшаем максимальное количество страниц для проверки
+      const maxPages = 3; // Вместо 5 страниц
       let myProductIndex = -1;
       let myFoundPage = 1;
       let competitorProductIndex = -1;
@@ -409,15 +435,27 @@ export async function getPositionsInCities(
         )}&page=${pageNum}`;
         console.log(`Поиск на странице ${pageNum}: ${searchUrl}`);
 
-        await page.goto(searchUrl, {
-          waitUntil: 'networkidle2',
-          timeout: 60000,
-        });
+        try {
+          // Уменьшаем таймаут и используем более быстрый способ загрузки
+          await page.goto(searchUrl, {
+            waitUntil: 'domcontentloaded',
+            timeout: 20000,
+          });
+        } catch (e) {
+          console.log(`Ошибка загрузки страницы: ${e}. Пробуем альтернативный способ.`);
+          // Альтернативный подход в случае ошибки
+          await Promise.race([
+            page.goto(searchUrl, { waitUntil: 'networkidle0', timeout: 15000 }),
+            new Promise(resolve => setTimeout(resolve, 10000))
+          ]);
+        }
 
         // Ждем, пока не загрузятся результаты
         await page
-          .waitForSelector('.product-card', { timeout: 10000 })
-          .catch(() => {});
+          .waitForSelector('.product-card', { timeout: 5000 })
+          .catch(() => {
+            console.log('Не удалось найти селектор .product-card, проверяем HTML напрямую');
+          });
 
         // Получаем HTML страницы
         const content = await page.content();
@@ -452,17 +490,6 @@ export async function getPositionsInCities(
                 index + 1
               }`
             );
-
-            // Пытаемся получить изображение
-            const imgElement = $(card).find('.product-card__img-wrap img');
-            if (imgElement.length > 0) {
-              const imgSrc = imgElement.attr('src');
-              if (imgSrc && imgSrc.length > 0) {
-                console.log(
-                  `Найдено изображение для товара ${myArticleId} в поисковой выдаче`
-                );
-              }
-            }
           }
 
           if (
@@ -476,43 +503,19 @@ export async function getPositionsInCities(
                 index + 1
               }`
             );
-
-            // Пытаемся получить изображение
-            const imgElement = $(card).find('.product-card__img-wrap img');
-            if (imgElement.length > 0) {
-              const imgSrc = imgElement.attr('src');
-              if (imgSrc && imgSrc.length > 0) {
-                console.log(
-                  `Найдено изображение для товара ${competitorArticleId} в поисковой выдаче`
-                );
-              }
-            }
           }
         });
 
         // Обновляем общее количество проверенных товаров
         totalItemsChecked += pageItemCount;
 
-        // Пауза между запросами страниц
+        // Уменьшаем паузу между запросами страниц
         if (
           pageNum < maxPages &&
           (myProductIndex === -1 || competitorProductIndex === -1)
         ) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
-      }
-
-      // Вывод информации о ненайденных товарах
-      if (myProductIndex === -1) {
-        console.log(
-          `ВНИМАНИЕ: Товар ${myArticleId} НЕ НАЙДЕН в поисковой выдаче по запросу "${query}"`
-        );
-      }
-
-      if (competitorArticleId && competitorProductIndex === -1) {
-        console.log(
-          `ВНИМАНИЕ: Товар конкурента ${competitorArticleId} НЕ НАЙДЕН в поисковой выдаче по запросу "${query}"`
-        );
       }
 
       // Вычисление реальной позиции
@@ -587,11 +590,11 @@ export async function getPositionsInCities(
       });
     }
 
-    // 2. Генерируем результаты для остальных городов на основе Москвы
-    cities.forEach(([city, cityCode]) => {
-      // Пропускаем Москву, она уже обработана
-      if (city === moscowCity) return;
-
+    // 2. Генерируем результаты для других крупных городов (но только если есть результаты для Москвы)
+    // Берем только 3 крупных города для ускорения
+    const majorCities = Object.entries(CITY_CODES).slice(1, 4);
+    
+    majorCities.forEach(([city, cityCode]) => {
       console.log(`Генерация данных для города ${city} (${cityCode})...`);
 
       // Если у нас есть базовые позиции из Москвы, генерируем случайные вариации
@@ -695,31 +698,107 @@ export async function parseWildberries(
   competitorArticleId?: string
 ): Promise<ParserResult> {
   try {
-    // Получаем данные о товарах, используя Promise для своего товара и позиций
-    const [myProduct, positionsData] = await Promise.all([
-      getProductData(myArticleId),
-      getPositionsInCities(query, myArticleId, competitorArticleId || ''),
+    // Ограничиваем время выполнения парсинга
+    const timeoutPromise = new Promise<ParserResult>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Превышено время выполнения парсинга (60 секунд)'));
+      }, 60000); // 60 секунд максимум
+    });
+
+    // Используем Promise.race чтобы либо получить результат, либо прервать по таймауту
+    return Promise.race([
+      (async () => {
+        // Начинаем с позиций, так как это самая долгая операция
+        console.log('Начинаем парсинг позиций...');
+        const positionsData = await getPositionsInCities(
+          query,
+          myArticleId,
+          competitorArticleId || ''
+        );
+
+        // Проверяем, найден ли товар в поиске
+        const myPositionFound = positionsData.cityPositions.some(
+          pos => pos.myPosition !== '-' && pos.myPosition !== 0
+        );
+
+        console.log('Получаем данные о товарах...');
+        
+        // Если указан артикул конкурента, получаем данные параллельно
+        let myProduct: Product;
+        let competitorProduct: Product | null = null;
+
+        if (competitorArticleId) {
+          [myProduct, competitorProduct] = await Promise.all([
+            getProductData(myArticleId),
+            getProductData(competitorArticleId)
+          ]);
+        } else {
+          // Иначе получаем только данные о своем товаре
+          myProduct = await getProductData(myArticleId);
+        }
+
+        console.log('Парсинг завершен, формируем результат...');
+
+        // Формируем результат
+        const result: ParserResult = {
+          products: {
+            my: myProduct,
+            competitor: competitorProduct,
+          },
+          positions: positionsData.cityPositions,
+          chartData: positionsData.chartData,
+        };
+
+        return result;
+      })(),
+      timeoutPromise
     ]);
-
-    // Если указан артикул конкурента, получаем его данные
-    let competitorProduct = null;
-    if (competitorArticleId) {
-      competitorProduct = await getProductData(competitorArticleId);
-    }
-
-    // Формируем результат
-    const result: ParserResult = {
-      products: {
-        my: myProduct,
-        competitor: competitorProduct,
-      },
-      positions: positionsData.cityPositions,
-      chartData: positionsData.chartData,
-    };
-
-    return result;
   } catch (error) {
     console.error('Ошибка при парсинге данных:', error);
-    throw error;
+    
+    // Формируем базовый результат в случае ошибки
+    const defaultProduct: Product = {
+      id: myArticleId,
+      name: 'Ошибка получения данных',
+      articleId: myArticleId,
+      price: 0,
+      image: '/images/no-image.svg',
+      brand: 'Н/Д',
+    };
+    
+    let competitorProduct: Product | null = null;
+    if (competitorArticleId) {
+      competitorProduct = {
+        id: competitorArticleId,
+        name: 'Ошибка получения данных',
+        articleId: competitorArticleId,
+        price: 0,
+        image: '/images/no-image.svg',
+        brand: 'Н/Д',
+      };
+    }
+    
+    // Возвращаем базовый результат с сообщением об ошибке
+    return {
+      products: {
+        my: defaultProduct,
+        competitor: competitorProduct,
+      },
+      positions: [
+        {
+          city: 'Москва',
+          myPage: '-',
+          myPosition: 'Ошибка',
+          ...(competitorArticleId ? { competitorPage: '-', competitorPosition: 'Ошибка' } : {}),
+        }
+      ],
+      chartData: [
+        {
+          city: 'Москва',
+          myPosition: 0,
+          competitorPosition: 0,
+        }
+      ],
+    };
   }
 }

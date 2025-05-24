@@ -242,137 +242,182 @@ export async function POST(req: NextRequest) {
 
       // Если в кэше нет данных, делаем новый запрос к Wildberries
       console.log('Кэшированных данных нет, выполняем парсинг Wildberries');
-      const result = await parseWildberries(
-        query,
-        myArticleId,
-        competitorArticleId
-      );
-
-      // Сохраняем историю запроса в локальное хранилище
-      saveSearchHistory(query, myArticleId, competitorArticleId);
-
-      // Сохраняем данные в PostgreSQL
+      
+      // Устанавливаем таймаут для ответа API
+      const apiTimeout = setTimeout(() => {
+        console.log('Предупреждение: API запрос выполняется дольше ожидаемого, но продолжает работу');
+      }, 20000); // 20 секунд
+      
       try {
-        // Создаем запись о поисковом запросе
-        const searchQuery = await prisma.searchQuery.create({
-          data: {
-            query: query,
-          },
-        });
+        // Выполняем парсинг с ограничением по времени
+        const result = await parseWildberries(
+          query,
+          myArticleId,
+          competitorArticleId
+        );
+        
+        // Очищаем таймаут
+        clearTimeout(apiTimeout);
 
-        // Сохраняем данные о товарах с использованием upsert
-        if (result.products.my) {
-          await prisma.product.upsert({
-            where: { article: result.products.my.articleId },
-            update: {
-              title: result.products.my.name,
-              price: result.products.my.price,
-              imageUrl: result.products.my.image,
-              searchQueryId: searchQuery.id,
-            },
-            create: {
-              article: result.products.my.articleId,
-              title: result.products.my.name,
-              price: result.products.my.price,
-              imageUrl: result.products.my.image,
-              isCompetitor: false,
-              searchQueryId: searchQuery.id,
+        // Сохраняем историю запроса в локальное хранилище
+        saveSearchHistory(query, myArticleId, competitorArticleId);
+
+        // Сохраняем данные в PostgreSQL
+        try {
+          // Создаем запись о поисковом запросе
+          const searchQuery = await prisma.searchQuery.create({
+            data: {
+              query: query,
             },
           });
-        }
 
-        if (result.products.competitor) {
-          await prisma.product.upsert({
-            where: { article: result.products.competitor.articleId },
-            update: {
-              title: result.products.competitor.name,
-              price: result.products.competitor.price,
-              imageUrl: result.products.competitor.image,
-              searchQueryId: searchQuery.id,
-            },
-            create: {
-              article: result.products.competitor.articleId,
-              title: result.products.competitor.name,
-              price: result.products.competitor.price,
-              imageUrl: result.products.competitor.image,
-              isCompetitor: true,
-              searchQueryId: searchQuery.id,
-            },
-          });
-        }
+          // Сохраняем данные о товарах с использованием upsert
+          if (result.products.my) {
+            await prisma.product.upsert({
+              where: { article: result.products.my.articleId },
+              update: {
+                title: result.products.my.name,
+                price: result.products.my.price,
+                imageUrl: result.products.my.image,
+                searchQueryId: searchQuery.id,
+              },
+              create: {
+                article: result.products.my.articleId,
+                title: result.products.my.name,
+                price: result.products.my.price,
+                imageUrl: result.products.my.image,
+                isCompetitor: false,
+                searchQueryId: searchQuery.id,
+              },
+            });
+          }
 
-        // Сохраняем данные о позициях
-        if (result.positions && result.positions.length > 0) {
-          const myProductDB = await prisma.product.findUnique({
-            where: { article: myArticleId },
-          });
+          if (result.products.competitor) {
+            await prisma.product.upsert({
+              where: { article: result.products.competitor.articleId },
+              update: {
+                title: result.products.competitor.name,
+                price: result.products.competitor.price,
+                imageUrl: result.products.competitor.image,
+                searchQueryId: searchQuery.id,
+              },
+              create: {
+                article: result.products.competitor.articleId,
+                title: result.products.competitor.name,
+                price: result.products.competitor.price,
+                imageUrl: result.products.competitor.image,
+                isCompetitor: true,
+                searchQueryId: searchQuery.id,
+              },
+            });
+          }
 
-          const competitorProductDB = await prisma.product.findUnique({
-            where: { article: competitorArticleId },
-          });
+          // Сохраняем данные о позициях
+          if (result.positions && result.positions.length > 0) {
+            const myProductDB = await prisma.product.findUnique({
+              where: { article: myArticleId },
+            });
 
-          for (const posData of result.positions) {
-            // Получаем номер страницы и позицию для моего товара
-            const myPageStr = String(posData.myPage || '');
-            const myPage = myPageStr ? parseInt(myPageStr, 10) : 0;
+            const competitorProductDB = await prisma.product.findUnique({
+              where: { article: competitorArticleId },
+            });
 
-            const myPosStr = String(posData.myPosition || '');
-            const myPosition = myPosStr ? parseInt(myPosStr, 10) : 0;
+            for (const posData of result.positions) {
+              // Получаем номер страницы и позицию для моего товара
+              const myPageStr = String(posData.myPage || '');
+              const myPage = myPageStr ? parseInt(myPageStr, 10) : 0;
 
-            // Если есть данные о позиции моего товара и товар найден в БД
-            if (myPosition > 0 && myProductDB) {
-              await prisma.position.create({
-                data: {
-                  city: posData.city,
-                  position: myPosition,
-                  page: myPage,
-                  productId: myProductDB.id,
-                  searchQueryId: searchQuery.id,
-                },
-              });
-            }
+              const myPosStr = String(posData.myPosition || '');
+              const myPosition = myPosStr ? parseInt(myPosStr, 10) : 0;
 
-            // Получаем номер страницы и позицию для товара конкурента
-            const compPageStr = String(posData.competitorPage || '');
-            const compPage = compPageStr ? parseInt(compPageStr, 10) : 0;
+              // Если есть данные о позиции моего товара и товар найден в БД
+              if (myPosition > 0 && myProductDB) {
+                await prisma.position.create({
+                  data: {
+                    city: posData.city,
+                    position: myPosition,
+                    page: myPage,
+                    productId: myProductDB.id,
+                    searchQueryId: searchQuery.id,
+                  },
+                });
+              }
 
-            const compPosStr = String(posData.competitorPosition || '');
-            const compPosition = compPosStr ? parseInt(compPosStr, 10) : 0;
+              // Получаем номер страницы и позицию для товара конкурента
+              const compPageStr = String(posData.competitorPage || '');
+              const compPage = compPageStr ? parseInt(compPageStr, 10) : 0;
 
-            // Если есть данные о позиции товара конкурента и товар найден в БД
-            if (compPosition > 0 && competitorProductDB) {
-              await prisma.position.create({
-                data: {
-                  city: posData.city,
-                  position: compPosition,
-                  page: compPage,
-                  productId: competitorProductDB.id,
-                  searchQueryId: searchQuery.id,
-                },
-              });
+              const compPosStr = String(posData.competitorPosition || '');
+              const compPosition = compPosStr ? parseInt(compPosStr, 10) : 0;
+
+              // Если есть данные о позиции товара конкурента и товар найден в БД
+              if (compPosition > 0 && competitorProductDB) {
+                await prisma.position.create({
+                  data: {
+                    city: posData.city,
+                    position: compPosition,
+                    page: compPage,
+                    productId: competitorProductDB.id,
+                    searchQueryId: searchQuery.id,
+                  },
+                });
+              }
             }
           }
+
+          console.log(`Данные успешно сохранены в базе данных`);
+        } catch (dbError) {
+          console.error('Ошибка при сохранении в базу данных:', dbError);
+          // Продолжаем выполнение, даже если сохранение в БД не удалось
         }
 
-        console.log(`Данные успешно сохранены в базе данных`);
-      } catch (dbError) {
-        console.error('Ошибка при сохранении в базу данных:', dbError);
-        // Продолжаем выполнение, даже если сохранение в БД не удалось
+        // Возвращаем результат
+        return NextResponse.json(result);
+      } catch (parsingError) {
+        // Очищаем таймаут
+        clearTimeout(apiTimeout);
+        
+        console.error('Ошибка при парсинге:', parsingError);
+        
+        // Создаем базовый ответ с сообщением об ошибке
+        const errorResponse = {
+          query,
+          error: 'Ошибка при парсинге данных',
+          products: {
+            my: {
+              id: myArticleId,
+              articleId: myArticleId,
+              name: 'Ошибка при получении данных',
+              price: 0,
+              image: '/images/no-image.svg',
+              brand: 'Н/Д',
+            },
+            competitor: competitorArticleId ? {
+              id: competitorArticleId,
+              articleId: competitorArticleId,
+              name: 'Ошибка при получении данных',
+              price: 0,
+              image: '/images/no-image.svg',
+              brand: 'Н/Д',
+            } : null,
+          },
+          positions: [],
+          chartData: [],
+        };
+        
+        return NextResponse.json(errorResponse, { status: 500 });
       }
-
-      // Возвращаем результат
-      return NextResponse.json(result);
     } catch (error) {
       console.error('Ошибка при парсинге:', error);
       return NextResponse.json(
-        { error: 'Ошибка при парсинге данных' },
+        { error: 'Ошибка при парсинге данных', details: String(error) },
         { status: 500 }
       );
     }
   } catch (error) {
     console.error('Ошибка при обработке запроса:', error);
     return NextResponse.json(
-      { error: 'Внутренняя ошибка сервера' },
+      { error: 'Внутренняя ошибка сервера', details: String(error) },
       { status: 500 }
     );
   }

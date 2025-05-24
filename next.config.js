@@ -2,6 +2,7 @@
 const nextConfig = {
   output: 'standalone',
   images: {
+    unoptimized: true,
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
@@ -19,6 +20,8 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
+    formats: ['image/webp'],
+    minimumCacheTTL: 60,
   },
   // Увеличиваем таймаут для API запросов
   experimental: {
@@ -46,6 +49,10 @@ const nextConfig = {
   // Настройки для оптимизации и кэширования
   staticPageGenerationTimeout: 180,
   distDir: '.next',
+  // Отключаем строгий режим для изображений
+  typescript: {
+    ignoreBuildErrors: false,
+  },
 };
 
 module.exports = nextConfig;
