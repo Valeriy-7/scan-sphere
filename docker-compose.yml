@@ -13,6 +13,8 @@ services:
       - NODE_ENV=${NODE_ENV}
       - DATABASE_URL=${DATABASE_URL}
       - RUN_MIGRATIONS=${RUN_MIGRATIONS:-false}
+      - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
     volumes:
       - ./public/images:/app/public/images
       - ./public/images/cache:/app/public/images/cache

@@ -69,10 +69,36 @@ export async function getProductData(articleId: string): Promise<Product> {
   try {
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
+      ],
+      timeout: 30000,
     });
 
     const page = await browser.newPage();
+
+    // Ускоряем загрузку страницы блокировкой ненужных ресурсов
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const resourceType = req.resourceType();
+      if (
+        resourceType === 'stylesheet' || 
+        resourceType === 'font' || 
+        resourceType === 'media' ||
+        req.url().includes('google') ||
+        req.url().includes('analytics')
+      ) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
 
     // Устанавливаем User-Agent как у обычного браузера
     await page.setUserAgent(
@@ -83,12 +109,38 @@ export async function getProductData(articleId: string): Promise<Product> {
     const url = `https://www.wildberries.ru/catalog/${articleId}/detail.aspx`;
     console.log(`Загрузка данных о товаре: ${url}`);
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    } catch (e) {
+      console.log(`Ошибка загрузки страницы: ${e}. Пробуем альтернативный способ.`);
+      // Альтернативный подход в случае ошибки
+      await Promise.race([
+        page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 }),
+        new Promise(resolve => setTimeout(resolve, 15000))
+      ]);
+    }
 
-    // Ждем, пока не загрузится основная информация
+    // Ждем, пока не загрузится основная информация (более короткий таймаут)
     await page
-      .waitForSelector('.product-page__header', { timeout: 10000 })
-      .catch(() => {});
+      .waitForSelector('.product-page__header, .catalog-page, .not-found-search', { timeout: 5000 })
+      .catch(() => {
+        console.log('Не удалось найти основной селектор, продолжаем без него');
+      });
+
+    // Проверка наличия сообщения "Товар не найден"
+    const notFoundElement = await page.$('.not-found-search');
+    if (notFoundElement) {
+      console.log(`Товар ${articleId} не найден на Wildberries`);
+      await browser.close();
+      return {
+        id: articleId,
+        name: 'Товар не найден',
+        articleId,
+        price: 0,
+        image: '/images/no-image.svg',
+        brand: 'Н/Д',
+      };
+    }
 
     // Получаем HTML страницы
     const content = await page.content();
@@ -211,34 +263,38 @@ export async function getProductData(articleId: string): Promise<Product> {
     let image = '/images/no-image.svg';
 
     // Попробуем найти изображение в разных местах страницы
-    // 1. Сначала ищем в основной галерее (на странице товара)
-    let imgSrc = $('.slider-content img').first().attr('src');
+    try {
+      // 1. Сначала ищем в основной галерее (на странице товара)
+      let imgSrc = $('.slider-content img').first().attr('src');
 
-    // 2. Если не нашли, пробуем найти в мобильной галерее
-    if (!imgSrc || imgSrc.length === 0 || imgSrc.includes('data:image')) {
-      imgSrc = $('.swiper-wrapper img').first().attr('src');
-    }
+      // 2. Если не нашли, пробуем найти в мобильной галерее
+      if (!imgSrc || imgSrc.length === 0 || imgSrc.includes('data:image')) {
+        imgSrc = $('.swiper-wrapper img').first().attr('src');
+      }
 
-    // 3. Проверяем наличие изображения в структуре имидж-контейнера
-    if (!imgSrc || imgSrc.length === 0 || imgSrc.includes('data:image')) {
-      imgSrc = $('.img-plug img').first().attr('src');
-    }
+      // 3. Проверяем наличие изображения в структуре имидж-контейнера
+      if (!imgSrc || imgSrc.length === 0 || imgSrc.includes('data:image')) {
+        imgSrc = $('.img-plug img').first().attr('src');
+      }
 
-    // 4. Пытаемся извлечь из пути к товару (используя артикул)
-    if (!imgSrc || imgSrc.length === 0 || imgSrc.includes('data:image')) {
-      // Формируем путь к изображению по шаблону WB
-      const vol = articleId.substring(0, Math.min(4, articleId.length));
-      const part = articleId.substring(0, Math.min(6, articleId.length));
-      imgSrc = `https://basket-10.wbbasket.ru/vol${vol}/part${part}/${articleId}/images/c516x688/1.webp`;
-    }
+      // 4. Пытаемся извлечь из пути к товару (используя артикул)
+      if (!imgSrc || imgSrc.length === 0 || imgSrc.includes('data:image')) {
+        // Формируем путь к изображению по шаблону WB
+        const vol = articleId.substring(0, Math.min(4, articleId.length));
+        const part = articleId.substring(0, Math.min(6, articleId.length));
+        imgSrc = `https://basket-10.wbbasket.ru/vol${vol}/part${part}/${articleId}/images/c516x688/1.webp`;
+      }
 
-    if (imgSrc && imgSrc.length > 0 && !imgSrc.includes('data:image')) {
-      image = imgSrc.startsWith('http') ? imgSrc : `https:${imgSrc}`;
-      console.log(`Получено изображение: ${image}`);
-    } else {
-      console.log(
-        `Не удалось найти изображение для товара ${articleId}, используем заглушку`
-      );
+      if (imgSrc && imgSrc.length > 0 && !imgSrc.includes('data:image')) {
+        image = imgSrc.startsWith('http') ? imgSrc : `https:${imgSrc}`;
+        console.log(`Получено изображение: ${image}`);
+      } else {
+        console.log(
+          `Не удалось найти изображение для товара ${articleId}, используем заглушку`
+        );
+      }
+    } catch (imgError) {
+      console.log(`Ошибка при получении изображения: ${imgError}`);
     }
 
     await browser.close();

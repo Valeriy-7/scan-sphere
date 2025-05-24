@@ -4,6 +4,10 @@ import { saveSearchHistory } from '../../lib/history';
 import prisma from '../../lib/prisma';
 import { SearchResponse, Product } from '@/types';
 
+// Увеличиваем таймаут для API роута
+export const maxDuration = 300; // 300 секунд = 5 минут
+export const dynamic = 'force-dynamic';
+
 // Функция для расчета реальной позиции с учетом страницы
 const calculatePosition = (
   position: number | string,

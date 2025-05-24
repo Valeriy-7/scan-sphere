@@ -147,78 +147,78 @@ const HistoryDisplay: FC<HistoryDisplayProps> = ({
               </span>
             </motion.h3>
           </motion.div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 w-full flex-1 overflow-auto">
-            {limitedHistory.map((day, dayIndex) => (
-              <motion.div
-                key={dayIndex}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: dayIndex * 0.1, duration: 0.4 }}
-                className="rounded-xl border border-purple-100 flex flex-col h-full min-h-0 overflow-hidden bg-gradient-to-b from-white/60 to-white/40"
-              >
-                <div className="bg-purple-600 text-white py-2 px-3 text-center font-medium text-sm flex flex-col">
-                  <span>{day.date}</span>
-                </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 w-full flex-1 overflow-auto">
+          {limitedHistory.map((day, dayIndex) => (
+            <motion.div
+              key={dayIndex}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: dayIndex * 0.1, duration: 0.4 }}
+              className="rounded-xl border border-purple-100 flex flex-col h-full min-h-0 overflow-hidden bg-gradient-to-b from-white/60 to-white/40"
+            >
+              <div className="bg-purple-600 text-white py-2 px-3 text-center font-medium text-sm flex flex-col">
+                <span>{day.date}</span>
+              </div>
 
-                <div className="flex-1 min-h-0 overflow-auto p-0">
-                  <table className="w-full text-sm">
-                    <thead className="bg-purple-50">
-                      <tr>
-                        <th className="text-left py-1.5 px-2 text-gray-700 font-medium border-b border-purple-100">
-                          Город
-                        </th>
-                        <th className="text-center py-1.5 px-1 text-gray-700 font-medium border-b border-purple-100">
+              <div className="flex-1 min-h-0 overflow-auto p-0">
+                <table className="w-full text-sm">
+                  <thead className="bg-purple-50">
+                    <tr>
+                      <th className="text-left py-1.5 px-2 text-gray-700 font-medium border-b border-purple-100">
+                        Город
+                      </th>
+                      <th className="text-center py-1.5 px-1 text-gray-700 font-medium border-b border-purple-100">
                           Мои
+                      </th>
+                      {day.hasCompetitor && (
+                        <th className="text-center py-1.5 px-1 text-gray-700 font-medium border-b border-purple-100">
+                          Конкурент
                         </th>
-                        {day.hasCompetitor && (
-                          <th className="text-center py-1.5 px-1 text-gray-700 font-medium border-b border-purple-100">
-                            Конкурент
-                          </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {day.positions.map((position, posIndex) => {
-                        // Рассчитываем позиции с учетом страницы
-                        const myRank = calculateRank(
-                          position.rank,
-                          position.pageRank
-                        );
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {day.positions.map((position, posIndex) => {
+                      // Рассчитываем позиции с учетом страницы
+                      const myRank = calculateRank(
+                        position.rank,
+                        position.pageRank
+                      );
 
-                        // Рассчитываем позицию конкурента, если она доступна
-                        const competitorRank =
-                          position.competitorRank && position.competitorPageRank
-                            ? calculateRank(
-                                position.competitorRank,
-                                position.competitorPageRank
-                              )
-                            : undefined;
+                      // Рассчитываем позицию конкурента, если она доступна
+                      const competitorRank =
+                        position.competitorRank && position.competitorPageRank
+                          ? calculateRank(
+                              position.competitorRank,
+                              position.competitorPageRank
+                            )
+                          : undefined;
 
-                        return (
-                          <tr
-                            key={posIndex}
-                            className="hover:bg-purple-50 transition-colors border-b border-purple-50"
-                          >
-                            <td className="py-1.5 px-2 text-gray-700 font-medium">
-                              {position.city}
-                            </td>
-                            <td className="py-1.5 px-1 text-center text-purple-700 font-medium">
-                              {myRank}
-                            </td>
-                            {day.hasCompetitor && (
+                      return (
+                        <tr
+                          key={posIndex}
+                          className="hover:bg-purple-50 transition-colors border-b border-purple-50"
+                        >
+                          <td className="py-1.5 px-2 text-gray-700 font-medium">
+                            {position.city}
+                          </td>
+                          <td className="py-1.5 px-1 text-center text-purple-700 font-medium">
+                            {myRank}
+                          </td>
+                          {day.hasCompetitor && (
                               <td className="py-1.5 px-1 text-center text-gray-600 font-medium">
-                                {competitorRank || '–'}
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                              {competitorRank || '–'}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          ))}
+        </div>
         </>
       )}
     </div>
