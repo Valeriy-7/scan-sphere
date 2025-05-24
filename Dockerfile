@@ -9,7 +9,8 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont \
     openssl \
-    gcompat
+    gcompat \
+    wget
 
 # Устанавливаем переменные окружения для Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
@@ -47,8 +48,17 @@ COPY --from=builder /app/package.json ./package.json
 EXPOSE 3000
 
 # Создаем скрипт для запуска с предварительной генерацией клиента Prisma
-RUN echo '#!/bin/sh\necho "Generating Prisma client..."\nnpx prisma generate\n\nif [ "$RUN_MIGRATIONS" = "true" ]; then\n  echo "Running database migrations..."\n  npx prisma migrate deploy\nfi\n\necho "Starting server..."\nnode server.js' > start.sh && \
-    chmod +x start.sh
+RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
+    echo 'echo "Checking environment..."' >> /app/entrypoint.sh && \
+    echo 'echo "Generating Prisma client..."' >> /app/entrypoint.sh && \
+    echo 'npx prisma generate' >> /app/entrypoint.sh && \
+    echo 'if [ "$RUN_MIGRATIONS" = "true" ]; then' >> /app/entrypoint.sh && \
+    echo '  echo "Running database migrations..."' >> /app/entrypoint.sh && \
+    echo '  npx prisma migrate deploy' >> /app/entrypoint.sh && \
+    echo 'fi' >> /app/entrypoint.sh && \
+    echo 'echo "Starting server..."' >> /app/entrypoint.sh && \
+    echo 'exec node server.js' >> /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
 
 # Запускаем приложение через скрипт
-CMD ["./start.sh"]
+CMD ["/app/entrypoint.sh"]

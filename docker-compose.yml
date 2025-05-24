@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: openparsersferav-app:${TAG}
-    restart: always
+    restart: on-failure:5
     ports:
       - '3004:3000'
     environment:
